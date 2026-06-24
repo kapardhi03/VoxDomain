@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phonetic STT Corrector</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #18181f;
+      --surface2: #1f1f28;
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(255,255,255,0.15);
+      --text: #f0f0f5;
+      --text-muted: #8888a0;
+      --text-dim: #55556a;
+      --accent: #7c6ff7;
+      --accent-glow: rgba(124,111,247,0.15);
+      --accent-light: #a89cf9;
+      --green: #3ecf8e;
+      --green-dim: rgba(62,207,142,0.12);
+      --amber: #f5a623;
+      --amber-dim: rgba(245,166,35,0.12);
+      --red: #f06060;
+      --red-dim: rgba(240,96,96,0.10);
+      --blue: #4fa3f7;
+      --blue-dim: rgba(79,163,247,0.10);
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    #root { min-height: 100vh; }
+
+    /* Layout */
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-dot {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .logo-name { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+    .logo-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px;
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+    .main { flex: 1; display: flex; gap: 0; max-width: 1280px; margin: 0 auto; width: 100%; padding: 0; }
+
+    /* Left panel */
+    .panel-left {
+      flex: 1;
+      padding: 28px;
+      border-right: 1px solid var(--border);
+    }
+
+    /* Right panel */
+    .panel-right {
+      width: 360px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    /* Mic button */
+    .mic-container {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 40px 0 32px;
+    }
+
+    .mic-btn {
+      width: 80px; height: 80px; border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface2);
+      cursor: pointer; transition: all 0.2s ease;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; outline: none;
+    }
+    .mic-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+    .mic-btn.recording {
+      border-color: var(--red);
+      background: var(--red-dim);
+      animation: pulse-ring 1.4s ease infinite;
+    }
+    .mic-btn svg { width: 28px; height: 28px; transition: all 0.2s; }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(240,96,96,0.3); }
+      70% { box-shadow: 0 0 0 16px rgba(240,96,96,0); }
+      100% { box-shadow: 0 0 0 0 rgba(240,96,96,0); }
+    }
+
+    .mic-hint {
+      margin-top: 14px; font-size: 13px; color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Transcript areas */
+    .transcript-grid { display: flex; flex-direction: column; gap: 16px; }
+
+    .transcript-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .transcript-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .transcript-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .transcript-label-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+
+    .transcript-body {
+      padding: 14px;
+      font-size: 15px; line-height: 1.7;
+      min-height: 80px; font-family: 'Inter', sans-serif;
+      color: var(--text);
+    }
+
+    .transcript-body.empty { color: var(--text-dim); font-style: italic; font-size: 14px; }
+
+    .transcript-body .highlight {
+      background: rgba(124,111,247,0.18);
+      color: var(--accent-light);
+      border-radius: 3px;
+      padding: 0 3px;
+      font-weight: 500;
+    }
+
+    /* Copy button */
+    .copy-btn {
+      font-size: 11px; color: var(--text-muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 3px 8px;
+      cursor: pointer; transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
+
+    /* Replacements panel */
+    .replacements-section { margin-top: 4px; }
+
+    .replacement-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .rep-original { color: var(--red); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .rep-arrow { color: var(--text-dim); font-size: 12px; }
+    .rep-corrected { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; }
+    .rep-method {
+      margin-left: auto; font-size: 10px; color: var(--text-dim);
+      background: var(--surface); border-radius: 4px; padding: 2px 6px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .rep-confidence {
+      font-size: 10px; color: var(--text-muted);
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex; gap: 12px; margin-top: 8px;
+    }
+
+    .stat-chip {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-value { font-size: 20px; font-weight: 600; }
+    .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+
+    .stat-chip.green .stat-value { color: var(--green); }
+    .stat-chip.amber .stat-value { color: var(--amber); }
+    .stat-chip.blue .stat-value { color: var(--blue); }
+
+    /* Right panel sections */
+    .right-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .right-section h3 {
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 12px;
+    }
+
+    /* Form inputs */
+    .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .inp {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 7px 10px;
+      font-size: 13px; color: var(--text); font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.15s;
+    }
+    .inp:focus { border-color: var(--accent); }
+    .inp::placeholder { color: var(--text-dim); }
+
+    .btn-add {
+      background: var(--accent-glow); border: 1px solid var(--accent);
+      color: var(--accent-light); border-radius: var(--radius-sm);
+      padding: 7px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+      white-space: nowrap;
+    }
+    .btn-add:hover { background: var(--accent); color: white; }
+    .btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Feedback toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 16px;
+      font-size: 13px; z-index: 999;
+      animation: slide-up 0.2s ease;
+      display: flex; align-items: center; gap: 8px;
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .processing-indicator {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-muted);
+      padding: 6px 10px; background: var(--amber-dim);
+      border-radius: var(--radius-sm); margin-top: 8px;
+    }
+    .spin {
+      width: 12px; height: 12px; border: 2px solid var(--border);
+      border-top-color: var(--amber); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
+
+    .log-section { margin-top: 4px; }
+    .log-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const API = "http://localhost:8000";
+
+function App() {
+  const [recording, setRecording] = useState(false);
+  const [rawTranscript, setRawTranscript] = useState("");
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [corrected, setCorrected] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [processingMs, setProcessingMs] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [newOntology, setNewOntology] = useState({ term: "", domain: "custom" });
+  const [newAcronym, setNewAcronym] = useState({ enunciation: "", acronym: "" });
+  const [logFailure, setLogFailure] = useState({ original: "", expected: "" });
+  const recognitionRef = useRef(null);
+  const finalRef = useRef("");
+
+  useEffect(() => {
+    fetch(`${API}/stats`).then(r => r.json()).then(setStats).catch(() => {});
+  }, []);
+
+  const showToast = (msg, type = "info") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2800);
+  };
+
+  const correctTranscript = useCallback(async (text) => {
+    if (!text.trim()) return;
+    setProcessing(true);
+    try {
+      const res = await fetch(`${API}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: text, threshold: 0.72 })
+      });
+      const data = await res.json();
+      setCorrected(data);
+      setProcessingMs(data.processing_ms);
+    } catch (e) {
+      showToast("API unreachable — start backend with: uvicorn main:app --reload", "error");
+    } finally {
+      setProcessing(false);
+    }
+  }, []);
+
+  const startRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("Web Speech API not supported. Use Chrome or Edge.", "error");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN"; // en-IN captures Telugu-accented English better
+    finalRef.current = "";
+
+    recognition.onresult = (e) => {
+      let interim = "";
+      let final = finalRef.current;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          final += t + " ";
+          finalRef.current = final;
+        } else {
+          interim = t;
+        }
+      }
+      setLiveTranscript(final + interim);
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error !== "no-speech") showToast(`STT error: ${e.error}`, "error");
+    };
+
+    recognition.onend = () => {
+      if (recording) recognition.start(); // keep alive
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+    setRecording(true);
+    setLiveTranscript("");
+    setCorrected(null);
+    setProcessingMs(null);
+    finalRef.current = "";
+  };
+
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+    }
+    setRecording(false);
+    const raw = finalRef.current.trim() || liveTranscript.trim();
+    setRawTranscript(raw);
+    setLiveTranscript(raw);
+    if (raw) correctTranscript(raw);
+  };
+
+  const toggleRecording = () => {
+    if (recording) stopRecording();
+    else startRecording();
+  };
+
+  const copyText = (text) => {
+    navigator.clipboard.writeText(text).then(() => showToast("Copied to clipboard"));
+  };
+
+  const highlightReplacements = (text, replacements) => {
+    if (!replacements || replacements.length === 0) return <span>{text}</span>;
+    let parts = [text];
+    for (const r of replacements) {
+      parts = parts.flatMap(part => {
+        if (typeof part !== "string") return [part];
+        const idx = part.indexOf(r.corrected);
+        if (idx === -1) return [part];
+        return [
+          part.slice(0, idx),
+          <span key={r.corrected} className="highlight" title={`was: "${r.original}" (${r.method})`}>{r.corrected}</span>,
+          part.slice(idx + r.corrected.length)
+        ];
+      });
+    }
+    return <>{parts}</>;
+  };
+
+  const addOntology = async () => {
+    if (!newOntology.term.trim()) return;
+    const res = await fetch(`${API}/ontology/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newOntology)
+    });
+    const data = await res.json();
+    showToast(data.message, data.success ? "success" : "info");
+    if (data.success) {
+      setNewOntology({ term: "", domain: "custom" });
+      fetch(`${API}/stats`).then(r => r.json()).then(setStats);
+    }
+  };
+
+  const addAcronym = async () => {
+    if (!newAcronym.enunciation.trim() || !newAcronym.acronym.trim()) return;
+    const res = await fetch(`${API}/acronym/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newAcronym)
+    });
+    const data = await res.json();
+    showToast(data.message, data.success ? "success" : "info");
+    if (data.success) setNewAcronym({ enunciation: "", acronym: "" });
+  };
+
+  const submitFailure = async () => {
+    if (!logFailure.original.trim() || !logFailure.expected.trim()) return;
+    await fetch(`${API}/failure/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(logFailure)
+    });
+    showToast("Correction logged — system will learn from this", "success");
+    setLogFailure({ original: "", expected: "" });
+  };
+
+  return (
+    <div className="app">
+      <div className="topbar">
+        <div className="logo">
+          <div className="logo-dot">🎙</div>
+          <div>
+            <div className="logo-name">Phonetic STT Corrector</div>
+            <div className="logo-sub">Domain-aware speech correction engine</div>
+          </div>
+        </div>
+        <div className="status-pill">
+          <div className="status-dot" />
+          {stats ? `${stats.total_ontologies.toLocaleString()} terms · ${stats.total_acronyms} acronyms` : "Connecting..."}
+        </div>
+      </div>
+
+      <div className="main">
+        <div className="panel-left">
+          {/* Mic */}
+          <div className="mic-container">
+            <button
+              className={`mic-btn ${recording ? "recording" : ""}`}
+              onClick={toggleRecording}
+              aria-label={recording ? "Stop recording" : "Start recording"}
+            >
+              {recording ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="#f06060" strokeWidth="2.2" strokeLinecap="round">
+                  <rect x="6" y="6" width="12" height="12" rx="2" fill="#f06060" opacity="0.8"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="#a89cf9" strokeWidth="2" strokeLinecap="round">
+                  <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              )}
+            </button>
+            <p className="mic-hint">
+              {recording ? "Recording — speak your prompt, click to stop" : "Click to start speaking"}
+            </p>
+          </div>
+
+          {/* Stats bar */}
+          {corrected && (
+            <div className="stats-bar" style={{marginBottom: 16}}>
+              <div className="stat-chip green">
+                <div className="stat-value">{corrected.stats.replacements_made}</div>
+                <div className="stat-label">Corrections</div>
+              </div>
+              <div className="stat-chip amber">
+                <div className="stat-value">{processingMs}ms</div>
+                <div className="stat-label">Latency</div>
+              </div>
+              <div className="stat-chip blue">
+                <div className="stat-value">{corrected.stats.total_tokens}</div>
+                <div className="stat-label">Tokens</div>
+              </div>
+            </div>
+          )}
+
+          {/* Transcripts */}
+          <div className="transcript-grid">
+            <div className="transcript-box">
+              <div className="transcript-header">
+                <span className="transcript-label">
+                  <span className="transcript-label-dot" style={{background:"#f06060"}} />
+                  Raw STT output
+                </span>
+                {liveTranscript && <button className="copy-btn" onClick={() => copyText(liveTranscript)}>Copy</button>}
+              </div>
+              <div className={`transcript-body ${!liveTranscript ? "empty" : ""}`}>
+                {liveTranscript || (recording ? "Listening..." : "Your speech will appear here")}
+              </div>
+            </div>
+
+            <div className="transcript-box">
+              <div className="transcript-header">
+                <span className="transcript-label">
+                  <span className="transcript-label-dot" style={{background:"var(--green)"}} />
+                  Corrected output
+                </span>
+                {corrected && <button className="copy-btn" onClick={() => copyText(corrected.corrected)}>Copy</button>}
+              </div>
+              <div className={`transcript-body ${!corrected ? "empty" : ""}`}>
+                {processing ? (
+                  <div className="processing-indicator"><div className="spin"/> Correcting...</div>
+                ) : corrected ? (
+                  highlightReplacements(corrected.corrected, corrected.replacements)
+                ) : "Corrected text will appear here"}
+              </div>
+            </div>
+          </div>
+
+          {/* Replacements */}
+          {corrected && corrected.replacements.length > 0 && (
+            <div className="replacements-section" style={{marginTop: 16}}>
+              <div className="section-label">Replacements made</div>
+              {corrected.replacements.map((r, i) => (
+                <div key={i} className="replacement-item">
+                  <span className="rep-original">"{r.original}"</span>
+                  <span className="rep-arrow">→</span>
+                  <span className="rep-corrected">{r.corrected}</span>
+                  {r.method === "phonetic" && (
+                    <span className="rep-confidence">{Math.round(r.confidence * 100)}%</span>
+                  )}
+                  <span className="rep-method">{r.method.replace("_", " ")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {corrected && corrected.replacements.length === 0 && (
+            <div style={{marginTop: 12, fontSize: 13, color: "var(--text-dim)"}}>
+              No domain corrections needed — transcript looks clean.
+            </div>
+          )}
+        </div>
+
+        {/* Right panel */}
+        <div className="panel-right">
+          {/* Add ontology */}
+          <div className="right-section">
+            <h3>Add domain term</h3>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder="Term (e.g. vectorization)"
+                value={newOntology.term}
+                onChange={e => setNewOntology(p => ({...p, term: e.target.value}))}
+                onKeyDown={e => e.key === "Enter" && addOntology()}
+              />
+            </div>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder="Domain (e.g. ai_ml)"
+                value={newOntology.domain}
+                onChange={e => setNewOntology(p => ({...p, domain: e.target.value}))}
+              />
+              <button className="btn-add" onClick={addOntology}>Add</button>
+            </div>
+          </div>
+
+          {/* Add acronym */}
+          <div className="right-section">
+            <h3>Add acronym mapping</h3>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder='Spoken form: "arr ay gee"'
+                value={newAcronym.enunciation}
+                onChange={e => setNewAcronym(p => ({...p, enunciation: e.target.value}))}
+              />
+            </div>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder='Acronym: "RAG"'
+                value={newAcronym.acronym}
+                onChange={e => setNewAcronym(p => ({...p, acronym: e.target.value}))}
+              />
+              <button className="btn-add" onClick={addAcronym}>Map</button>
+            </div>
+          </div>
+
+          {/* Log failure */}
+          <div className="right-section">
+            <h3>Log a correction</h3>
+            <p className="log-hint">Help the system learn from misses</p>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder="What STT said (wrong)"
+                value={logFailure.original}
+                onChange={e => setLogFailure(p => ({...p, original: e.target.value}))}
+              />
+            </div>
+            <div className="input-row">
+              <input
+                className="inp"
+                placeholder="What it should be"
+                value={logFailure.expected}
+                onChange={e => setLogFailure(p => ({...p, expected: e.target.value}))}
+              />
+              <button className="btn-add" onClick={submitFailure}>Log</button>
+            </div>
+          </div>
+
+          {/* Stats */}
+          {stats && (
+            <div className="right-section">
+              <h3>Index stats</h3>
+              <div style={{fontSize: 13, color: "var(--text-muted)", lineHeight: 2}}>
+                <div style={{display:"flex", justifyContent:"space-between"}}>
+                  <span>Ontology terms</span>
+                  <span style={{color:"var(--text)", fontWeight:500}}>{stats.total_ontologies.toLocaleString()}</span>
+                </div>
+                <div style={{display:"flex", justifyContent:"space-between"}}>
+                  <span>Acronym maps</span>
+                  <span style={{color:"var(--text)", fontWeight:500}}>{stats.total_acronyms}</span>
+                </div>
+                <div style={{display:"flex", justifyContent:"space-between"}}>
+                  <span>Learned corrections</span>
+                  <span style={{color:"var(--text)", fontWeight:500}}>{stats.known_transcriptions}</span>
+                </div>
+                <div style={{display:"flex", justifyContent:"space-between"}}>
+                  <span>Phonetic index keys</span>
+                  <span style={{color:"var(--text)", fontWeight:500}}>{stats.phonetic_index_keys}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="toast">
+          <span style={{color: toast.type === "error" ? "var(--red)" : toast.type === "success" ? "var(--green)" : "var(--text)"}}>
+            {toast.type === "error" ? "⚠" : toast.type === "success" ? "✓" : "ℹ"}
+          </span>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

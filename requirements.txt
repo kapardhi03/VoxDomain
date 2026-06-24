@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+metaphone==0.6
+jellyfish==1.1.0
+rapidfuzz==3.9.7
+python-multipart==0.0.12
+pydantic==2.9.2
